@@ -1,24 +1,25 @@
+---
 services:
   movies:
-    image: aiyappaaa/movies
+    image: aiyappaaa/movies:latest
     ports:
       - 81:80
     deploy:
       replicas: 3
   train:
-    image: aiyappaaa/paytrain
+    image: aiyappaaa/paytrain:latest
     ports:
       - 82:80
     deploy:
       replicas: 3
   dth:
-    image: aiyappaa/paydth
+    image: aiyappaa/paydth:latest
     ports:
       - 83:80
     deploy:
       replicas: 3
   recharge:
-    image: aiyappaaa/payrecharge
+    image: aiyappaaa/payrecharge:latest
     ports:
       - 84:80
     deploy:
