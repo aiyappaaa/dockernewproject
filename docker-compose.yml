@@ -13,7 +13,7 @@ services:
     deploy:
       replicas: 3
   dth:
-    image: aiyappaa/paydth:latest
+    image: aiyappaaa/paydth:latest
     ports:
       - 83:80
     deploy:
