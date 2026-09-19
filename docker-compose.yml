@@ -7,13 +7,13 @@ services:
     deploy:
       replicas: 3
   train:
-    image: aiyappaaa/paytrain
+    image: aiyappaaa/train
     ports:
       - 82:80
     deploy:
       replicas: 3
   dth:
-    image: aiyappaaa/paydth
+    image: aiyappaaa/dth
     ports:
       - 83:80
     deploy:
