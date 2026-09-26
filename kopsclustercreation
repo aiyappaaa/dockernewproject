@@ -1,0 +1,77 @@
+#!/bin/bash
+# ==============================================================================
+# Automated kOps Cluster Setup (Master: t2.medium, Workers: 2 x t2.micro)
+# ==============================================================================
+set -e
+
+# --- Configuration Variables ---
+export REGION="us-east-1"
+export ZONE="us-east-1a"
+export CLUSTER_NAME="devops.k8s.local"
+
+# Unique S3 bucket derived from your AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export BUCKET_NAME="kops-state-${ACCOUNT_ID}-${REGION}"
+export KOPS_STATE_STORE="s3://${BUCKET_NAME}"
+
+echo ">>> STEP 1: Verify SSH Key"
+if [ ! -f ~/.ssh/id_rsa ]; then
+    echo "SSH key not found. Generating default SSH key pair..."
+    ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -N ""
+fi
+
+echo ">>> STEP 2: Download & Install kubectl and kops"
+# Download kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+# Download kops binary (v1.25.0)
+wget https://github.com/kubernetes/kops/releases/download/v1.25.0/kops-linux-amd64
+
+# Set executable permissions
+chmod +x kubectl kops-linux-amd64
+
+# Move binaries to system PATH
+sudo mv kubectl /usr/local/bin/kubectl
+sudo mv kops-linux-amd64 /usr/local/bin/kops
+
+# Ensure PATH is loaded
+export PATH=$PATH:/usr/local/bin
+grep -qxF 'export PATH=$PATH:/usr/local/bin' ~/.bashrc || echo 'export PATH=$PATH:/usr/local/bin' >> ~/.bashrc
+
+echo ">>> STEP 3: Create S3 Bucket & Configure State Store"
+if [ "${REGION}" == "us-east-1" ]; then
+    aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${REGION}"
+else
+    aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${REGION}" \
+        --create-bucket-configuration LocationConstraint="${REGION}"
+fi
+
+# Enable S3 bucket versioning
+aws s3api put-bucket-versioning --bucket "${BUCKET_NAME}" --region "${REGION}" \
+    --versioning-configuration Status=Enabled
+
+# Persist environment variables in ~/.bashrc
+sed -i '/KOPS_STATE_STORE/d' ~/.bashrc
+sed -i '/CLUSTER_NAME/d' ~/.bashrc
+echo "export KOPS_STATE_STORE=s3://${BUCKET_NAME}" >> ~/.bashrc
+echo "export CLUSTER_NAME=${CLUSTER_NAME}" >> ~/.bashrc
+
+echo ">>> STEP 4: Create Cluster Definition (t2.medium Master, 2x t2.micro Workers)"
+kops create cluster \
+    --name="${CLUSTER_NAME}" \
+    --state="${KOPS_STATE_STORE}" \
+    --zones="${ZONE}" \
+    --master-count=1 \
+    --master-size=t2.medium \
+    --node-count=2 \
+    --node-size=t2.micro
+
+echo ">>> STEP 5: Provision Cluster Infrastructure on AWS"
+kops update cluster --name="${CLUSTER_NAME}" --yes --admin
+
+echo "=========================================================="
+echo "Cluster creation submitted to AWS!"
+echo "Run 'source ~/.bashrc' to reload your shell environment."
+echo "Wait ~5-10 minutes for instances to initialize, then run:"
+echo "   kops validate cluster"
+echo "=========================================================="
